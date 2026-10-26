@@ -1,0 +1,185 @@
+﻿@page "/products"
+@using ProductLab.Models
+@using ProductLab.Data
+@using Microsoft.AspNetCore.Components.Forms
+@inject ProductService Products
+@rendermode InteractiveServer
+
+<PageTitle>Product Management</PageTitle>
+
+<h3>Product Management</h3>
+
+@if (!string.IsNullOrWhiteSpace(message))
+{
+    <p role="status">@message</p>
+}
+
+<EditForm Model="formProduct" OnValidSubmit="SaveAsync" FormName="ProductForm">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="mb-2">
+        <label>Name</label>
+        <InputText class="form-control" @bind-Value="formProduct.Name" />
+    </div>
+
+    <div class="mb-2">
+        <label>Description</label>
+        <InputTextArea class="form-control" @bind-Value="formProduct.Description" />
+    </div>
+
+    <div class="mb-2">
+        <label>Price</label>
+        <InputNumber class="form-control" @bind-Value="formProduct.Price" />
+    </div>
+
+    <div class="mb-2">
+        <label>Stock quantity</label>
+        <InputNumber class="form-control" @bind-Value="formProduct.StockQuantity" />
+    </div>
+
+    <button class="btn btn-primary" type="submit">
+        @(editing ? "Update product" : "Add product")
+    </button>
+
+    @if (editing)
+    {
+        <button class="btn btn-secondary ms-2" type="button" @onclick="ResetForm">
+            Cancel
+        </button>
+    }
+</EditForm>
+
+
+<hr />
+
+<button class="btn btn-outline-primary mb-2"
+        @onclick="LoadAsync">
+    Refresh list
+</button>
+
+@if (products is null)
+{
+    <p>Loading products...</p>
+}
+else if (products.Count == 0)
+{
+    <p>No products found. Add the first product above.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Price</th>
+                <th>Stock</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var p in products)
+            {
+                <tr>
+                    <td>@p.Name</td>
+                    <td>@p.Price.ToString("0.00")</td>
+                    <td>@p.StockQuantity</td>
+                    <td>
+                        <button class="btn btn-sm btn-warning"
+                                @onclick="() => Edit(p)">
+                            Edit
+                        </button>
+
+                        <button class="btn btn-sm btn-danger ms-1"
+                                @onclick="() => DeleteAsync(p.ProductId)">
+                            Delete
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Product>? products;
+    private Product formProduct = new();
+    private bool editing;
+    private string? message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            products = await Products.GetAllAsync();
+        }
+        catch (Exception)
+        {
+            message = "Could not load products. Check the connection and server logs.";
+            products = new();
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            if (editing)
+                await Products.UpdateAsync(formProduct);
+            else
+                await Products.AddAsync(formProduct);
+
+            message = editing
+                ? "Product updated."
+                : "Product added.";
+
+            ResetForm();
+            await LoadAsync();
+        }
+        catch (Exception)
+        {
+            message = "Save failed. Check the server logs and database constraints.";
+        }
+    }
+
+    private void Edit(Product product)
+    {
+        formProduct = new Product
+        {
+            ProductId = product.ProductId,
+            Name = product.Name,
+            Description = product.Description,
+            Price = product.Price,
+            StockQuantity = product.StockQuantity,
+            CreatedAt = product.CreatedAt
+        };
+
+        editing = true;
+        message = null;
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        try
+        {
+            await Products.DeleteAsync(id);
+            message = "Product deleted.";
+            await LoadAsync();
+        }
+        catch (Exception)
+        {
+            message = "Delete failed. Check the server logs.";
+        }
+    }
+
+    private void ResetForm()
+    {
+        formProduct = new Product();
+        editing = false;
+    }
+}
